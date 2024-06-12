@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Facility Location Game</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/brython@3.9.5/brython.min.js"></script>
+</head>
+<body onload="brython()">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script type="text/python">
+        from browser import document, html, timer
+        import math
+        import random
+
+        # Inicialização
+        canvas = document["gameCanvas"]
+        ctx = canvas.getContext("2d")
+
+        WIDTH, HEIGHT = 800, 600
+
+        RED = "#FF0000"
+        GREEN = "#00FF00"
+        BLUE = "#0000FF"
+        YELLOW = "#FFFF00"
+        BLACK = "#000000"
+        WHITE = "#FFFFFF"
+
+        p = 3
+
+        num_clients = 10
+        num_facilities = 5
+        demand_points = [(random.randint(50, WIDTH - 50), random.randint(50, HEIGHT - 50)) for _ in range(num_clients)]
+
+        min_x = min(point[0] for point in demand_points)
+        max_x = max(point[0] for point in demand_points)
+        min_y = min(point[1] for point in demand_points)
+        max_y = max(point[1] for point in demand_points)
+
+        facility_points = [(random.randint(min_x, max_x), random.randint(min_y, max_y)) for _ in range(num_facilities)]
+        facility_costs = [random.randint(50, 150) for _ in range(num_facilities)]
+        selected_facilities = []
+        optimal_facilities = []
+        optimal_connections = []
+        message = ""
+
+        def draw_points_and_text():
+            ctx.clearRect(0, 0, WIDTH, HEIGHT)
+            for d_point, f_point in optimal_connections:
+                ctx.beginPath()
+                ctx.moveTo(d_point[0], d_point[1])
+                ctx.lineTo(f_point[0], f_point[1])
+                ctx.strokeStyle = YELLOW
+                ctx.stroke()
+
+            for point in demand_points:
+                ctx.beginPath()
+                ctx.arc(point[0], point[1], 5, 0, 2 * math.pi)
+                ctx.fillStyle = RED
+                ctx.fill()
+
+            for i, point in enumerate(facility_points):
+                color = YELLOW if point in optimal_facilities else BLUE if point in selected_facilities else GREEN
+                ctx.beginPath()
+                ctx.arc(point[0], point[1], 10, 0, 2 * math.pi)
+                ctx.fillStyle = color
+                ctx.fill()
+                ctx.fillStyle = BLACK
+                ctx.fillText(f'${facility_costs[i]}', point[0] + 10, point[1] - 10)
+
+            distance_text = f'Total Cost: {calculate_total_cost(selected_facilities)}'
+            ctx.fillStyle = BLACK
+            ctx.font = "24px Arial"
+            ctx.fillText(distance_text, 10, 30)
+
+            if message:
+                ctx.fillStyle = WHITE
+                ctx.fillRect(WIDTH / 2 - 100, HEIGHT / 2 - 30, 200, 60)
+                ctx.strokeStyle = BLACK
+                ctx.strokeRect(WIDTH / 2 - 100, HEIGHT / 2 - 30, 200, 60)
+                ctx.fillStyle = BLACK
+                ctx.font = "24px Arial"
+                ctx.fillText(message, WIDTH / 2 - 90, HEIGHT / 2)
+
+        def calculate_total_cost(facilities):
+            if len(facilities) != p:
+                return "N/A"
+            total_cost = 0
+            for i, f_point in enumerate(facility_points):
+                if f_point in facilities:
+                    total_cost += facility_costs[i]
+
+            for d_point in demand_points:
+                min_distance_cost = float('inf')
+                for f_point in facilities:
+                    distance = math.hypot(f_point[0] - d_point[0], f_point[1] - d_point[1])
+                    distance_cost = distance
+                    if distance_cost < min_distance_cost:
+                        min_distance_cost = distance_cost
+                total_cost += min_distance_cost
+            return total_cost
+
+        def find_optimal_solution():
+            min_cost = float('inf')
+            best_facilities = []
+            best_connections = []
+            from itertools import combinations
+            for combination in combinations(facility_points, p):
+                cost = calculate_total_cost(combination)
+                if cost < min_cost:
+                    min_cost = cost
+                    best_facilities = combination
+                    best_connections = [(d_point, min(combination, key=lambda f: math.hypot(f[0] - d_point[0], f[1] - d_point[1]))) for d_point in demand_points]
+            return best_facilities, min_cost, best_connections
+
+        def on_mouse_down(event):
+            global message, optimal_facilities, optimal_connections
+            x, y = event.x, event.y
+            if event.button == 0:  # Clique esquerdo
+                for i, f_point in enumerate(facility_points):
+                    if math.hypot(f_point[0] - x, f_point[1] - y) < 10:
+                        if f_point in selected_facilities:
+                            selected_facilities.remove(f_point)
+                        elif len(selected_facilities) < p:
+                            selected_facilities.append(f_point)
+                        break
+            elif event.button == 2:  # Clique direito
+                if len(selected_facilities) == p:
+                    optimal_facilities, optimal_cost, optimal_connections = find_optimal_solution()
+                    user_cost = calculate_total_cost(selected_facilities)
+                    if user_cost == optimal_cost:
+                        message = "Parabéns! Você encontrou a solução ótima."
+                    else:
+                        message = "Não foi dessa vez."
+
+        canvas.bind("mousedown", on_mouse_down)
+
+        timer.set_interval(draw_points_and_text, 100)
+    </script>
+</body>
+</html>
